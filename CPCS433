@@ -1,0 +1,128 @@
+# Import necessary libraries
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from google.colab import drive
+import zipfile
+import os
+
+# Mount Google Drive
+drive.mount('/content/drive', force_remount=True)
+# Unzip the file
+zip_file_path = "/content/drive/MyDrive/PlantVillage.zip"
+extract_path = "/content/extracted_files/"
+with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+    zip_ref.extractall(extract_path)
+
+# Set paths for the directories
+train_dir = os.path.join(extract_path, 'PlantVillage')
+img_height, img_width = 224, 224  # Standard size for many CNNs
+
+# Create an ImageDataGenerator for data augmentation and normalization
+train_datagen = ImageDataGenerator(
+    rescale=1.0/255,
+    validation_split=0.2  # 20% for validation
+)
+
+# Load training and validation data
+train_generator = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(img_height, img_width),
+    batch_size=32,
+    class_mode='categorical',
+    subset='training'
+)
+
+validation_generator = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(img_height, img_width),
+    batch_size=32,
+    class_mode='categorical',
+    subset='validation'
+)
+# Define the CNN model
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(img_height, img_width, 3)),
+    MaxPooling2D((2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Conv2D(128, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(512, activation='relu'),
+    Dropout(0.5),
+    Dense(3, activation='softmax')  # 3 classes: Early_blight, Late_blight, healthy
+])
+
+# Compile the model
+model.compile(optimizer='adam',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Train the model
+history = model.fit(
+    train_generator,
+    epochs=10,
+    validation_data=validation_generator
+)
+
+# Save the model
+model.save('/content/potato_disease_classifier.h5')
+# Import necessary libraries
+from sklearn.metrics import classification_report
+
+# Load the saved model
+model = tf.keras.models.load_model('/content/potato_disease_classifier.h5')
+
+# Create an ImageDataGenerator for normalization
+test_datagen = ImageDataGenerator(rescale=1.0/255)
+
+# Assuming test images are in a separate directory
+test_dir = '/content/drive/MyDrive/testing'  # Change this to your actual test images path
+img_height, img_width = 224, 224  # Ensure this matches your training image size
+
+test_generator = test_datagen.flow_from_directory(
+    test_dir,
+    target_size=(img_height, img_width),
+    batch_size=32,
+    class_mode='categorical',
+    shuffle=False  # Do not shuffle data to keep the order for evaluation
+)
+
+# Make predictions
+predictions = model.predict(test_generator)
+predicted_classes = predictions.argmax(axis=-1)
+
+# Get true labels
+true_classes = test_generator.classes
+class_labels = list(test_generator.class_indices.keys())
+
+# Print a classification report
+report = classification_report(true_classes, predicted_classes, target_names=class_labels)
+print(report)
+
+# Evaluate the model on the test set
+loss, accuracy = model.evaluate(test_generator)
+print(f'Test Loss: {loss}')
+print(f'Test Accuracy: {accuracy}')
+import matplotlib.pyplot as plt
+
+# Plot the accuracy and loss curves
+plt.figure(figsize=(12, 4))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
