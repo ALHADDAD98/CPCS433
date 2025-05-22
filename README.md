@@ -47,6 +47,3 @@ We implemented and compared the performance of three deep learning models:
 
 ---
 
-## 📜 License
-MIT License or (specify any if applicable)
-
